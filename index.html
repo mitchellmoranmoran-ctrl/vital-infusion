@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vital Infusion | Consultor Inteligente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; scroll-behavior: smooth; }
+        h1, h2, h3 { font-family: 'Playfair Display', serif; }
+        .ai-glow { box-shadow: 0 0 20px rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.2); }
+        @media print {
+            body * { visibility: hidden; }
+            #plan-modal, #plan-modal * { visibility: visible; }
+            #plan-modal { position: absolute; left: 0; top: 0; width: 100%; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <section class="max-w-4xl mx-auto min-h-[60vh] flex flex-col justify-center items-center text-center bg-white rounded-3xl shadow-xl p-12 mb-12 border border-gray-100">
+        <div class="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mb-6">
+            <span class="text-white text-3xl font-bold italic">V</span>
+        </div>
+        <h1 class="text-5xl text-slate-800 mb-4">Vital Infusion</h1>
+        <p class="text-blue-600 tracking-widest uppercase text-sm font-semibold mb-8">Sueroterapia de Clase Mundial</p>
+        <p class="text-slate-500 italic text-lg mb-8">"Tu bienestar diseñado con inteligencia artificial."</p>
+    </section>
+
+    <section id="ia-consultor" class="max-w-4xl mx-auto mb-12 p-6 bg-white rounded-3xl shadow-2xl ai-glow">
+        <div class="flex items-center gap-3 mb-6">
+            <div class="bg-blue-100 p-2 rounded-lg text-blue-600">✨</div>
+            <h3 class="text-xl text-slate-800 font-semibold">Consultor de Bienestar</h3>
+        </div>
+        <div id="chat-container" class="h-64 overflow-y-auto mb-4 p-4 bg-slate-50 rounded-xl flex flex-col gap-3 text-sm">
+            <div class="bg-white p-3 rounded-lg shadow-sm border self-start max-w-[80%]">
+                ¡Hola! Soy tu asistente. Cuéntame, ¿cómo te sientes hoy?
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <input type="text" id="user-input" placeholder="Ej: Me siento agotado..." class="flex-1 p-3 rounded-xl border focus:ring-2 focus:ring-blue-400 outline-none">
+            <button onclick="askGemini()" id="send-btn" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700">Consultar</button>
+        </div>
+    </section>
+
+    <footer class="max-w-4xl mx-auto text-center py-12 border-t">
+        <button onclick="generatePlan()" class="bg-slate-900 text-white font-bold py-4 px-10 rounded-full hover:scale-105 transition-all">
+            Generar Mi Plan de Salud ✨
+        </button>
+        <p class="text-[10px] text-slate-400 mt-8 px-4 leading-tight">
+            *Descargo de responsabilidad: La información proporcionada por nuestra IA es educativa y no sustituye la consulta médica profesional.*
+        </p>
+    </footer>
+
+    <div id="plan-modal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl max-w-2xl w-full p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div class="flex justify-between items-center mb-6 no-print">
+                <h2 class="text-2xl font-bold">Tu Plan Personalizado</h2>
+                <div class="flex gap-2">
+                    <button onclick="window.print()" class="p-2 text-blue-600 hover:bg-blue-50 rounded-full">🖨️</button>
+                    <button onclick="closeModal()" class="p-2 text-slate-400">✕</button>
+                </div>
+            </div>
+            <div id="plan-content" class="prose prose-slate max-w-none"></div>
+        </div>
+    </div>
+
+    <script>
+        const catalogContent = "Catálogo: Hepa-Detox($80), Defensa($75), Anti-Estrés($75), Detox Pro($90), Anti-Edad($60), Vitaminas($35), Post-Party($70).";
+
+        async function fetchGemini(prompt, systemPrompt) {
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt, systemPrompt })
+                });
+                const data = await response.json();
+                return data.text;
+            } catch (e) { return "Error de conexión."; }
+        }
+
+        async function askGemini() {
+            const input = document.getElementById('user-input');
+            const chat = document.getElementById('chat-container');
+            if (!input.value.trim()) return;
+
+            const userMsg = document.createElement('div');
+            userMsg.className = "bg-blue-600 text-white p-3 rounded-lg self-end max-w-[80%]";
+            userMsg.textContent = input.value;
+            chat.appendChild(userMsg);
+
+            const response = await fetchGemini(input.value, `Eres experto en Vital Infusion. Recomienda sueros de: ${catalogContent}. Sé breve y usa español.`);
+            
+            const aiMsg = document.createElement('div');
+            aiMsg.className = "bg-white p-3 rounded-lg border self-start max-w-[80%] prose prose-sm";
+            aiMsg.innerHTML = marked.parse(response);
+            chat.appendChild(aiMsg);
+            input.value = "";
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        async function generatePlan() {
+            const modal = document.getElementById('plan-modal');
+            const content = document.getElementById('plan-content');
+            modal.classList.remove('hidden');
+            content.innerHTML = "Diseñando tu plan...";
+
+            const response = await fetchGemini("Genera un plan mensual de bienestar.", `Crea un plan mensual usando: ${catalogContent}. Usa Markdown con títulos y listas.`);
+            content.innerHTML = `
+                <div class="hidden print:block mb-8 border-b-2 border-blue-600 pb-4">
+                    <h1 class="text-2xl text-blue-600">VITAL INFUSION</h1>
+                    <p class="text-sm">Protocolo de Bienestar Personalizado</p>
+                </div>
+                ${marked.parse(response)}
+            `;
+        }
+
+        function closeModal() { document.getElementById('plan-modal').classList.add('hidden'); }
+    </script>
+</body>
+</html>
