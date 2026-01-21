@@ -51,7 +51,7 @@
             Generar Mi Plan de Salud ✨
         </button>
         <p class="text-[10px] text-slate-400 mt-8 px-4 leading-tight">
-            *Descargo de responsabilidad: La información proporcionada es referencial y no sustituye la consulta médica profesional, contactactanos al numero celular 0980515085.*
+            *Descargo de responsabilidad: La información proporcionada es referencial y no sustituye la consulta médica profesional, contáctanos al número celular 0980515085.*
         </p>
     </footer>
 
@@ -71,6 +71,7 @@
     <script>
         const catalogContent = "Catálogo: Hepa-Detox($80), Defensa($75), Anti-Estrés($75), Detox Pro($90), Anti-Edad($60), Vitaminas($35), Post-Party($70).";
 
+        // fetchGemini ahora maneja errores HTTP y de red; devuelve un fallback demo cuando no hay API
         async function fetchGemini(prompt, systemPrompt) {
             try {
                 const response = await fetch('/api/chat', {
@@ -78,28 +79,69 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt, systemPrompt })
                 });
-                const data = await response.json();
-                return data.text;
-            } catch (e) { return "Error detallado: " + e.message; }
+
+                // Si la respuesta no es 2xx, leemos el texto y devolvemos un mensaje claro + fallback demo
+                if (!response.ok) {
+                    const text = await response.text().catch(() => '');
+                    console.error('API error:', response.status, text);
+                    return `No se pudo contactar el servidor (HTTP ${response.status}). Respuesta: ${text || 'sin cuerpo'}.
+
+---
+Modo demo: respuesta simulada por el cliente.
+- Recomendación: Defensa ($75)
+- Frecuencia: 1 vez por semana.`;
+                }
+
+                // Intentamos parsear JSON; si no tiene campo text, devolvemos el JSON stringificado
+                const data = await response.json().catch(() => null);
+                if (!data) {
+                    console.warn('La respuesta no era JSON válido, devolviendo texto crudo.');
+                    const raw = await response.text().catch(() => '');
+                    return raw || 'Respuesta vacía del servidor.';
+                }
+                return data.text ?? JSON.stringify(data);
+            } catch (e) {
+                console.error('Fetch error:', e);
+                // Fallback de demo para pruebas locales (útil si abres el HTML directamente o no tienes backend)
+                return "Error: no se pudo conectar con /api/chat. (Modo demo)\n\n- Recomendación: Vitaminas ($35)\n- Frecuencia: 1 vez por semana\n\n(Puedes implementar el endpoint /api/chat que devuelva JSON: {\"text\":\"...\"})";
+            }
         }
 
         async function askGemini() {
             const input = document.getElementById('user-input');
             const chat = document.getElementById('chat-container');
+            const sendBtn = document.getElementById('send-btn');
             if (!input.value.trim()) return;
 
+            // Mostrar mensaje del usuario
             const userMsg = document.createElement('div');
             userMsg.className = "bg-blue-600 text-white p-3 rounded-lg self-end max-w-[80%]";
             userMsg.textContent = input.value;
             chat.appendChild(userMsg);
+            chat.scrollTop = chat.scrollHeight;
 
-            const response = await fetchGemini(input.value, `Eres experto en Vital Infusion. Recomienda sueros de: ${catalogContent}. Sé breve y usa español.`);
-            
+            // Deshabilitar botón mientras esperamos
+            sendBtn.disabled = true;
+            sendBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            const systemPrompt = `Eres experto en Vital Infusion. Recomienda sueros de: ${catalogContent}. Sé breve y usa español.`;
+            const response = await fetchGemini(input.value, systemPrompt);
+
+            // Mostrar respuesta (protegemos marked.parse si response es vacío)
             const aiMsg = document.createElement('div');
             aiMsg.className = "bg-white p-3 rounded-lg border self-start max-w-[80%] prose prose-sm";
-            aiMsg.innerHTML = marked.parse(response);
+            try {
+                aiMsg.innerHTML = response ? marked.parse(response) : '<i>Sin respuesta del servidor.</i>';
+            } catch (e) {
+                console.error('Error parseando markdown:', e);
+                aiMsg.textContent = response;
+            }
             chat.appendChild(aiMsg);
+
+            // Limpiar input y reactivar botón
             input.value = "";
+            sendBtn.disabled = false;
+            sendBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             chat.scrollTop = chat.scrollHeight;
         }
 
@@ -110,18 +152,31 @@
             content.innerHTML = "Diseñando tu plan...";
 
             const response = await fetchGemini("Genera un plan mensual de bienestar.", `Crea un plan mensual usando: ${catalogContent}. Usa Markdown con títulos y listas.`);
-            content.innerHTML = `
-                <div class="hidden print:block mb-8 border-b-2 border-blue-600 pb-4">
-                    <h1 class="text-2xl text-blue-600">VITAL INFUSION</h1>
-                    <p class="text-sm">Protocolo de Bienestar Personalizado</p>
-                </div>
-                ${marked.parse(response)}
-            `;
+            try {
+                content.innerHTML = `
+                    <div class="hidden print:block mb-8 border-b-2 border-blue-600 pb-4">
+                        <h1 class="text-2xl text-blue-600">VITAL INFUSION</h1>
+                        <p class="text-sm">Protocolo de Bienestar Personalizado</p>
+                    </div>
+                    ${response ? marked.parse(response) : '<i>No se obtuvo respuesta del servidor.</i>'}
+                `;
+            } catch (e) {
+                console.error('Error parseando markdown para el plan:', e);
+                content.textContent = response;
+            }
         }
 
         function closeModal() { document.getElementById('plan-modal').classList.add('hidden'); }
+
+        // Envío con Enter (sin shift)
+        document.getElementById('user-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                askGemini();
+            }
+        });
+
     </script>
 </body>
 
 </html>
-
